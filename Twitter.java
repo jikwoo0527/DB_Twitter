@@ -567,15 +567,15 @@ public class Twitter {
                         if(textType.equalsIgnoreCase("P")) {
                             sqlStat="SELECT Writer_ID FROM Posts WHERE P_ID="+TID;
                             rs=stmt.executeQuery(sqlStat);
-                            if(rs.next()) writerOfTID=rs.getString(1);
-                            else System.out.println("*ERROR!: This TID does not exist");
+                            if(rs.next()) {writerOfTID=rs.getString(1);}
+                            else {System.out.println("*ERROR!: This TID does not exist");return;}
                         }
                         //comment to comment
                         else if(textType.equalsIgnoreCase("C")) {
                             sqlStat="SELECT Commenter_ID FROM Comments WHERE C_ID="+TID;
                             rs=stmt.executeQuery(sqlStat);
-                            if(rs.next()) writerOfTID=rs.getString(1);
-                            else System.out.println("*ERROR!: This TID does not exist");
+                            if(rs.next()) {writerOfTID=rs.getString(1);}
+                            else {System.out.println("*ERROR!: This TID does not exist");return;}
                         }
 
 
@@ -627,7 +627,7 @@ public class Twitter {
                                 }
                                 else {
                                     System.out.println("*ERROR!: This TID does not exist");
-                                    break;
+                                    return;
                                 }
 
                             }
