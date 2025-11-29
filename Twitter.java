@@ -691,6 +691,12 @@ public class Twitter {
                     System.out.print("> Enter User ID you want to follow/unfollow: ");
                     followedId=kb.nextLine();
 
+                    //self-follow check
+                    if (followedId.equals(userId)) {
+                        System.out.println("*ERROR!: You can't follow yourself");
+                        return;
+                    }
+                    
                     //match check1: exist user?
                     stmt=conn.createStatement();
                     sqlStat="SELECT User_ID FROM User WHERE User_ID=\""+followedId+"\"";
