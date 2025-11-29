@@ -753,7 +753,7 @@ public class Twitter {
 
                         System.out.println("---"+wantShowFollowId+"\' s Follower list---");
                         System.out.println("|---------------------------------------------");
-                        if(rs.next()) {
+                        while(rs.next()) {
                             System.out.println("|"+rs.getString(1));
                         }
                         System.out.println("|---------------------------------------------");
@@ -765,7 +765,7 @@ public class Twitter {
 
                         System.out.println("---"+wantShowFollowId+"\' s Following list---");
                         System.out.println("|---------------------------------------------");
-                        if(rs.next()) {
+                        while(rs.next()) {
                             System.out.println("|"+rs.getString(1));
                         }
 
