@@ -474,7 +474,6 @@ public class Twitter {
 
             switch(op) {
                 case "1"->{
-                    String text="";
                     String line=null;
                     String op2=null;
                     System.out.println("---Write Post&Comment---");
@@ -483,21 +482,55 @@ public class Twitter {
 
                     //write post
                     if(op2.equals("1")) {
+                        String postText="";
+                        String subop=null;
+                        String targetId=null;
                         System.out.println("---Write Post---");
-                        System.out.println("> Write post(Enter -1 if end): ");
+                        System.out.println("> Selcet task: 1. Write post on my board | 2.Write on following's board(@ID)");
+
+                        subop=kb.nextLine();
                         // line write -> concat \n -> save to text
                         int firstLine=0;
 
+                        // if subop = 1 pass
+                        if (subop.equals("2")) {
+                            System.out.print("> Enter following's ID: ");
+                            targetId = kb.nextLine();
+
+                            //self-mention check
+                            if (targetId.equals(userId)) {
+                                System.out.println("*ERROR!: You can't write @message to yourself");
+                                return;
+                            }
+
+                            //check if actually following (query Follow table)
+                            stmt = conn.createStatement();
+                            sqlStat = "SELECT Followed_ID FROM Follow " +
+                                    "WHERE Following_ID=\"" + userId + "\" " +
+                                    "AND Followed_ID=\"" + targetId + "\"";
+                            rs = stmt.executeQuery(sqlStat);
+
+                            if (!rs.next()) {
+                                System.out.println("*ERROR!: You are not following this user");
+                                return;
+                            }
+
+                            //add @ prefix to ID
+                            postText = "@" + targetId + " ";
+                            firstLine = 1;
+                        }
+
+                        System.out.println("> Write post(Enter -1 if end): ");
                         while(true) {
                             line=kb.nextLine();
                             if(line.equals("-1")) break;
                             if(firstLine==0) {
-                                text=text+line;
+                                postText=postText+line;
                                 firstLine=1;
                             }
                             else {
-                                text=text+"\r\n";
-                                text=text+line;
+                                postText=postText+"\r\n";
+                                postText=postText+line;
                             }
 
 
@@ -505,7 +538,7 @@ public class Twitter {
 
                         //send to server
                         stmt=conn.createStatement();
-                        sqlStat="INSERT INTO Posts VALUES(NULL, \""+text+"\", \""+userId+"\", CURRENT_TIMESTAMP())";
+                        sqlStat="INSERT INTO Posts VALUES(NULL, \""+postText+"\", \""+userId+"\", CURRENT_TIMESTAMP())";
                         stmt.executeUpdate(sqlStat);
 
                         System.out.println("---Write Post Success!---");
@@ -515,6 +548,7 @@ public class Twitter {
 
                     //write comment
                     else if(op2.equals("2")) {
+                        String commentText="";
                         String textType=null;
                         int TID=0;
                         String writerOfTID=null;
@@ -548,7 +582,7 @@ public class Twitter {
 
                         System.out.println("> Write Comment(Enter -1 if end): ");
                         //comment type must have prefix @~
-                        text=text+"@"+writerOfTID+" ";
+                        commentText=commentText+"@"+writerOfTID+" ";
                         // line write -> concat \n -> save to text
                         int firstLine=0;
 
@@ -556,12 +590,12 @@ public class Twitter {
                             line=kb.nextLine();
                             if(line.equals("-1")) break;
                             if(firstLine==0) {
-                                text=text+line;
+                                commentText=commentText+line;
                                 firstLine=1;
                             }
                             else {
-                                text=text+"\r\n";
-                                text=text+line;
+                                commentText=commentText+"\r\n";
+                                commentText=commentText+line;
                             }
 
                         }
@@ -572,7 +606,7 @@ public class Twitter {
                         //comment to post
                         if(textType.equalsIgnoreCase("P")) {
                             stmt=conn.createStatement();
-                            sqlStat="INSERT INTO Comments VALUES(NULL,\""+text+"\", \""+userId+"\","+TID+", 0, CURRENT_TIMESTAMP())";
+                            sqlStat="INSERT INTO Comments VALUES(NULL,\""+commentText+"\", \""+userId+"\","+TID+", 0, CURRENT_TIMESTAMP())";
                             stmt.executeUpdate(sqlStat);
                         }
                         //comment to comment
@@ -600,7 +634,7 @@ public class Twitter {
 
 
                             stmt=conn.createStatement();
-                            sqlStat="INSERT INTO Comments VALUES(NULL,\""+text+"\", \""+userId+"\","+originalPostTID+","+TID+", CURRENT_TIMESTAMP())";
+                            sqlStat="INSERT INTO Comments VALUES(NULL,\""+commentText+"\", \""+userId+"\","+originalPostTID+","+TID+", CURRENT_TIMESTAMP())";
                             stmt.executeUpdate(sqlStat);
                         }
 
@@ -696,7 +730,7 @@ public class Twitter {
                         System.out.println("*ERROR!: You can't follow yourself");
                         return;
                     }
-                    
+
                     //match check1: exist user?
                     stmt=conn.createStatement();
                     sqlStat="SELECT User_ID FROM User WHERE User_ID=\""+followedId+"\"";
