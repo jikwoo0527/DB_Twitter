@@ -451,6 +451,121 @@ public class Twitter {
     }
 
 
+    public static void sendDM() throws Exception {
+        Statement stmt = null;
+        ResultSet rs = null;
+        PreparedStatement ps = null;
+        String sqlStat = null;
+
+        try {
+            System.out.println("---Send Direct Message---");
+            System.out.print("> Enter Receiver ID: ");
+            String recvId=kb.nextLine();
+
+            //self-DM check
+            if (recvId.equals(userId)) {
+                System.out.println("*ERROR!: You can't send DM to yourself");
+                return;
+            }
+
+            //check receiver exists
+            sqlStat = "SELECT User_ID FROM User WHERE User_ID = ?";
+            ps = conn.prepareStatement(sqlStat);
+            ps.setString(1, recvId);
+            rs = ps.executeQuery();
+            if (!rs.next()) {
+                System.out.println("*ERROR!: This ID does not exist");
+                return;
+            }
+
+            //input message (multi-line)
+            System.out.println("> Write DM (Enter -1 if end): ");
+            String dmText = "";
+            int firstLine = 0;
+            while (true) {
+                String line = kb.nextLine();
+                if (line.equals("-1")) break;
+                if (firstLine == 0) {
+                    dmText += line;
+                    firstLine = 1;
+                } else {
+                    dmText += "\r\n" + line;
+                }
+            }
+
+            //insert DM
+            sqlStat = "INSERT INTO Direct_message " +
+                    "(DM_ID, Text, Sender_ID, Receiver_ID, Receiver_read, DATE_time) " +
+                    "VALUES (NULL, ?, ?, ?, 0, CURRENT_TIMESTAMP())";
+            ps = conn.prepareStatement(sqlStat);
+            ps.setString(1, dmText);
+            ps.setString(2, userId);
+            ps.setString(3, recvId);
+            ps.executeUpdate();
+
+            System.out.println("---Send DM Success!---");
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            // 필요하면 rs/ps/stmt 정리
+        }
+    }
+
+
+    public static void showInbox() throws Exception {
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        String sqlStat = null;
+
+        try {
+            System.out.println("---Inbox (Received DMs)---");
+            sqlStat = "SELECT DM_ID, Text, Sender_ID, DATE_time, Receiver_read " +
+                    "FROM Direct_message " +
+                    "WHERE Receiver_ID = ? " +
+                    "ORDER BY DATE_time DESC";
+            ps = conn.prepareStatement(sqlStat);
+            ps.setString(1, userId);
+            rs = ps.executeQuery();
+
+            boolean hasAny = false;
+            while (rs.next()) {
+                hasAny = true;
+                int dmId = rs.getInt(1);
+                String text = rs.getString(2);
+                String sender = rs.getString(3);
+                String dateTime = rs.getString(4);
+                int readFlag = rs.getInt(5);
+
+                String readMark = (readFlag == 0) ? "[UNREAD]" : "[READ]";
+
+                System.out.println("|---------------------------------------------");
+                System.out.println("|DM_ID: " + dmId + " " + readMark);
+                System.out.println("|From: " + sender + " \t Datetime: " + dateTime);
+                System.out.println("|" + text);
+                System.out.println("|---------------------------------------------");
+            }
+
+            if (!hasAny) {
+                System.out.println("| No messages.");
+                System.out.println("|---------------------------------------------");
+            }
+
+            //auto mark as read
+            sqlStat = "UPDATE Direct_message " +
+                    "SET Receiver_read = 1 " +
+                    "WHERE Receiver_ID = ? AND Receiver_read = 0";
+            ps = conn.prepareStatement(sqlStat);
+            ps.setString(1, userId);
+            ps.executeUpdate();
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            // rs/ps 정리 가능
+        }
+    }
+
+
     //other core tasks; write post, like post...etc
     public static void coreTask() throws Exception{
 
@@ -468,7 +583,7 @@ public class Twitter {
         try {
 
             //write post-> dont need to writer id again  comment->need to parent post's writer id
-            System.out.println("> Select task: 1.Write Post&Comment | 2.Like Post&Comment | 3.Follow/Unfollow | 4.Show Follower/Following list | 5.Search Post&Comment | 6.Repost Post&Comment");
+            System.out.println("> Select task: 1.Write Post&Comment | 2.Like Post&Comment | 3.Follow/Unfollow | 4.Show Follower/Following list | 5.Search Post&Comment | 6.Repost Post&Comment | 7.Direct Message");
             op=kb.nextLine();
 
 
@@ -1007,17 +1122,23 @@ public class Twitter {
 
 
                 }
+                //Directed Messages
+                case"7"-> {
+                    System.out.println("---Direct Message---");
+                    System.out.println("> Select task: 1.Send DM | 2.Show inbox ");
+                    String subop = kb.nextLine();
+                    if (subop.equals("1")) {
+                        sendDM();
+                    } else if (subop.equals("2")) {
+                        showInbox();
+                    } else {
+                        System.out.println("*ERROR!: Invalid DM menu");
+                    }
+                }
             }
+        }
 
-
-
-
-
-            //Directed Messages (later) <will go to main >
-
-
-
-        }catch(SQLException e2) {
+        catch(SQLException e2) {
             e2.printStackTrace();
         }
 
