@@ -25,7 +25,6 @@ public class Twitter {
 
         //setting
         Statement stmt=null;
-        ResultSet rs=null;
         PreparedStatement pstm=null;
         String sqlStat=null;
         String op=null;
@@ -90,23 +89,30 @@ public class Twitter {
                         pw=kb.nextLine();
 
                         //prepare sql
-                        stmt=conn.createStatement();
-                        sqlStat="SELECT password FROM User WHERE User_ID=\""+id+"\"";
-                        rs=stmt.executeQuery(sqlStat);
+                        sqlStat = "SELECT Password FROM User WHERE User_ID = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, id);//bind user Id
+                            try (ResultSet rs = ps.executeQuery()) {
+                                // match check
+                                if (rs.next()) {
+                                    String dbPw = rs.getString(1);
+                                    if (pw.equals(dbPw)) {
+                                        System.out.println("---Log in Success!---");
+                                        // now we can access various tasks
+                                        login = true;
+                                        userId = id;
+                                        userPw = pw;
+                                    } else {
+                                        System.out.println("*ERROR!: This Password is wrong");
+                                    }
 
-                        //match check
-                        if(rs.next()) {
-                            if(pw.equals(rs.getString(1))) {
-                                System.out.println("---Log in Success!---");
-                                //now we can access various tasks
-                                login=true;
-                                userId=id;
-                                userPw=pw;
+                                } else {
+                                    System.out.println("*ERROR!: This ID does not exist");
+                                }
                             }
-                            else System.out.println("*ERROR!: This Password is wrong");
-
+                        } catch (SQLException e) {
+                            e.printStackTrace();
                         }
-                        else System.out.println("*ERROR!: This ID does not exist");
 
 
                     }
@@ -120,28 +126,37 @@ public class Twitter {
                         id=kb.nextLine();
                         System.out.print("> Enter Existing Password: ");
                         existPw=kb.nextLine();
+                        sqlStat = "SELECT Password FROM User WHERE User_ID = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, id);//bind user Id
+                            try (ResultSet rs = ps.executeQuery()) {
 
-                        //prepare sql
-                        stmt=conn.createStatement();
-                        sqlStat="SELECT password FROM User WHERE User_ID=\""+id+"\"";
-                        rs=stmt.executeQuery(sqlStat);
+                                if (rs.next()) {
+                                    String dbPw=rs.getString(1);
+                                    if (existPw.equals(dbPw)) {
+                                        //if match, ask for new password
+                                        System.out.println("> Enter New Password(max 15): ");
+                                        newPw=kb.nextLine();
 
-                        //match check first, if match, change is available
-                        if(rs.next()) {
-                            if(existPw.equals(rs.getString(1))) {
-                                System.out.println("> Enter New Password(max 15): ");
-                                newPw=kb.nextLine();
+                                        //update password
+                                        String updateSql="UPDATE User SET Password = ? WHERE User_ID = ?";
+                                        try (PreparedStatement ups=conn.prepareStatement(updateSql)) {
+                                            ups.setString(1, newPw);
+                                            ups.setString(2, id);
+                                            ups.executeUpdate();
+                                        }
 
-                                stmt=conn.createStatement();
-                                sqlStat="UPDATE User SET Password=\""+newPw+"\" WHERE User_ID=\""+id+"\"";
-                                stmt.executeUpdate(sqlStat);
-                                System.out.println("---Change password Success!---");
+                                        System.out.println("---Change password Success!---");
+                                    } else {
+                                        System.out.println("*ERROR!: Existing Password is wrong");
+                                    }
+                                } else {
+                                    System.out.println("*ERROR!: This ID does not exist");
+                                }
                             }
-                            else System.out.println("*ERROR!: Existing Password is wrong");
-
+                        } catch (SQLException e) {
+                            e.printStackTrace();
                         }
-                        else System.out.println("*ERROR!: This ID does not exist");
-
                     }
                 }
 
@@ -151,11 +166,8 @@ public class Twitter {
             e.printStackTrace();
         }
 
-
         //if login==true
         showTexts();
-
-
     }
 
 
@@ -348,13 +360,17 @@ public class Twitter {
                         wantId=kb.nextLine();
                         //check is it existing user?
 
+                        boolean exists = false;
                         //prepare sql
-                        stmt=conn.createStatement();
-                        sqlStat="SELECT User_ID FROM User WHERE User_ID=\""+wantId+"\"";
-                        rs=stmt.executeQuery(sqlStat);
+                        sqlStat = "SELECT User_ID FROM User WHERE User_ID = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, wantId);
+                            rs = ps.executeQuery();
+                            exists = rs.next();
+                        }
 
                         //match check
-                        if(rs.next()) {
+                        if(exists) {
                             //show that user's board
                             stmt=conn.createStatement();
                             sqlStat="SELECT * FROM (\r\n"
@@ -506,8 +522,6 @@ public class Twitter {
             System.out.println("---Send DM Success!---");
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            // 필요하면 rs/ps/stmt 정리
         }
     }
 
@@ -560,8 +574,6 @@ public class Twitter {
 
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            // rs/ps 정리 가능
         }
     }
 
@@ -574,7 +586,6 @@ public class Twitter {
 
         //resetting
         Statement stmt=null;
-        ResultSet rs=null;
         PreparedStatement pstm=null;
         String sqlStat=null;
         String op=null;
@@ -608,6 +619,8 @@ public class Twitter {
                         int firstLine=0;
 
                         // if subop = 1 pass
+
+                        //write on following's board
                         if (subop.equals("2")) {
                             System.out.print("> Enter following's ID: ");
                             targetId = kb.nextLine();
@@ -619,16 +632,19 @@ public class Twitter {
                             }
 
                             //check if actually following (query Follow table)
-                            stmt = conn.createStatement();
                             sqlStat = "SELECT Followed_ID FROM Follow " +
-                                    "WHERE Following_ID=\"" + userId + "\" " +
-                                    "AND Followed_ID=\"" + targetId + "\"";
-                            rs = stmt.executeQuery(sqlStat);
-
-                            if (!rs.next()) {
-                                System.out.println("*ERROR!: You are not following this user");
-                                return;
+                                    "WHERE Following_ID = ? AND Followed_ID = ?";
+                            try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                                ps.setString(1, userId);
+                                ps.setString(2, targetId);
+                                try (ResultSet rs = ps.executeQuery()) {
+                                    if (!rs.next()) {
+                                        System.out.println("*ERROR!: You are not following this user");
+                                        return;
+                                    }
+                                }
                             }
+
 
                             //add @ prefix to ID
                             postText = "@" + targetId + " ";
@@ -652,9 +668,13 @@ public class Twitter {
                         }
 
                         //send to server
-                        stmt=conn.createStatement();
-                        sqlStat="INSERT INTO Posts VALUES(NULL, \""+postText+"\", \""+userId+"\", CURRENT_TIMESTAMP())";
-                        stmt.executeUpdate(sqlStat);
+                        sqlStat = "INSERT INTO Posts (Text, Writer_ID, Date_time) " +
+                                "VALUES (?, ?, CURRENT_TIMESTAMP())";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, postText);
+                            ps.setString(2, userId);
+                            ps.executeUpdate();
+                        }
 
                         System.out.println("---Write Post Success!---");
 
@@ -677,20 +697,36 @@ public class Twitter {
                         TID=Integer.parseInt(kb.nextLine());
 
                         //find writerOfTID
-                        stmt=conn.createStatement();
-                        //comment to post
-                        if(textType.equalsIgnoreCase("P")) {
-                            sqlStat="SELECT Writer_ID FROM Posts WHERE P_ID="+TID;
-                            rs=stmt.executeQuery(sqlStat);
-                            if(rs.next()) {writerOfTID=rs.getString(1);}
-                            else {System.out.println("*ERROR!: This TID does not exist");return;}
+                        if (textType.equalsIgnoreCase("P")) { //comment to post
+                            sqlStat = "SELECT Writer_ID FROM Posts WHERE P_ID = ?";
+                            try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                                ps.setInt(1, TID);
+                                try (ResultSet rs = ps.executeQuery()) {
+                                    if (rs.next()) {
+                                        writerOfTID = rs.getString(1);
+                                    } else {
+                                        System.out.println("*ERROR!: This TID does not exist");
+                                        return;
+                                    }
+                                }
+                            }
                         }
-                        //comment to comment
-                        else if(textType.equalsIgnoreCase("C")) {
-                            sqlStat="SELECT Commenter_ID FROM Comments WHERE C_ID="+TID;
-                            rs=stmt.executeQuery(sqlStat);
-                            if(rs.next()) {writerOfTID=rs.getString(1);}
-                            else {System.out.println("*ERROR!: This TID does not exist");return;}
+                        else if (textType.equalsIgnoreCase("C")) { //comment to comment
+                            sqlStat = "SELECT Commenter_ID FROM Comments WHERE C_ID = ?";
+                            try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                                ps.setInt(1, TID);
+                                try (ResultSet rs = ps.executeQuery()) {
+                                    if (rs.next()) {
+                                        writerOfTID = rs.getString(1);
+                                    } else {
+                                        System.out.println("*ERROR!: This TID does not exist");
+                                        return;
+                                    }
+                                }
+                            }
+                        } else {
+                            System.out.println("*ERROR!: Text Type must be P or C");
+                            return;
                         }
 
 
@@ -719,38 +755,52 @@ public class Twitter {
                         //send to server
 
                         //comment to post
-                        if(textType.equalsIgnoreCase("P")) {
-                            stmt=conn.createStatement();
-                            sqlStat="INSERT INTO Comments VALUES(NULL,\""+commentText+"\", \""+userId+"\","+TID+", 0, CURRENT_TIMESTAMP())";
-                            stmt.executeUpdate(sqlStat);
+                        if (textType.equalsIgnoreCase("P")) {
+                            sqlStat = "INSERT INTO Comments " +
+                                    "(Text, Commenter_ID, P_ID, Parent_C_ID, Date_time) " +
+                                    "VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP())";
+                            try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                                ps.setString(1, commentText);
+                                ps.setString(2, userId);
+                                ps.setInt(3, TID);
+                                ps.executeUpdate();
+                            }
                         }
                         //comment to comment
                         else if(textType.equalsIgnoreCase("C")) {
                             //find original post
                             while(true) {
-                                stmt=conn.createStatement();
-                                sqlStat="SELECT P_ID,Parent_C_ID FROM Comments WHERE C_ID="+TID;
-                                rs=stmt.executeQuery(sqlStat);
-                                if(rs.next()) {
-                                    //if this is first comment?
-                                    if(rs.getInt(2)==0) {
-                                        originalPostTID=rs.getInt(1);
-                                        break;
+                                sqlStat = "SELECT P_ID, Parent_C_ID FROM Comments WHERE C_ID = ?";
+                                try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                                    ps.setInt(1, TID);
+                                    try (ResultSet rs = ps.executeQuery()) {
+                                        if (rs.next()) {
+                                            int parentCid = rs.getInt(2);//if this is first comment?
+                                            if (parentCid == 0) {
+                                                originalPostTID = rs.getInt(1);
+                                                break;
+                                            } else {
+                                                TID = parentCid; // go up to parent comment
+                                            }
+                                        } else {
+                                            System.out.println("*ERROR!: This TID does not exist");
+                                            return;
+                                        }
                                     }
-                                    //upup.. (actually dont need to... but recursive concept)
-                                    else TID=rs.getInt(2);
                                 }
-                                else {
-                                    System.out.println("*ERROR!: This TID does not exist");
-                                    return;
-                                }
-
                             }
 
 
-                            stmt=conn.createStatement();
-                            sqlStat="INSERT INTO Comments VALUES(NULL,\""+commentText+"\", \""+userId+"\","+originalPostTID+","+TID+", CURRENT_TIMESTAMP())";
-                            stmt.executeUpdate(sqlStat);
+                            sqlStat = "INSERT INTO Comments " +
+                                    "(Text, Commenter_ID, P_ID, Parent_C_ID, Date_time) " +
+                                    "VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP())";
+                            try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                                ps.setString(1, commentText);
+                                ps.setString(2, userId);
+                                ps.setInt(3, originalPostTID);
+                                ps.setInt(4, TID); // parent comment ID
+                                ps.executeUpdate();
+                            }
                         }
 
                         System.out.println("---Write Comment Success!---");
@@ -772,64 +822,66 @@ public class Twitter {
                     TID=Integer.parseInt(kb.nextLine());
 
 
-                    stmt=conn.createStatement();
-
-
-
-                    //like about post
-                    if(textType.equalsIgnoreCase("P")) {
-                        //check if already like? (similar to follow/unfollow)
-                        sqlStat="SELECT User_ID FROM Post_like WHERE P_ID=\""+TID+"\""+" AND User_ID=\""+userId+"\"";
-
+                    //validate textType
+                    if (!textType.equalsIgnoreCase("P") && !textType.equalsIgnoreCase("C")) {
+                        System.out.println("*ERROR!: Text Type must be P or C");
+                        return;
                     }
 
-                    //like about comment
-                    else if(textType.equalsIgnoreCase("C")) {
-                        //check if already like? (similar to follow/unfollow)
-                        sqlStat="SELECT User_ID FROM Comment_like WHERE C_ID=\""+TID+"\""+" AND User_ID=\""+userId+"\"";
+                    //check already like
+                    if (textType.equalsIgnoreCase("P")) {
+                        sqlStat = "SELECT User_ID FROM Post_like WHERE P_ID = ? AND User_ID = ?";
+                    } else { //C
+                        sqlStat = "SELECT User_ID FROM Comment_like WHERE C_ID = ? AND User_ID = ?";
                     }
 
-                    rs=stmt.executeQuery(sqlStat);
+                    try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                        ps.setInt(1, TID);
+                        ps.setString(2, userId);
 
-                    //can unlike
-                    if(rs.next()) {
-                        System.out.println("---Unlike---");
+                        try (ResultSet rs = ps.executeQuery()) {
 
-                        stmt=conn.createStatement();
+                            // can unlike
+                            if (rs.next()) {
+                                System.out.println("---Unlike---");
 
-                        if(textType.equalsIgnoreCase("P")) {
-                            sqlStat="DELETE FROM Post_like WHERE P_ID=\""+TID+"\""+" AND User_ID=\""+userId+"\"";
+                                if (textType.equalsIgnoreCase("P")) {
+                                    sqlStat = "DELETE FROM Post_like WHERE P_ID = ? AND User_ID = ?";
+                                } else {
+                                    sqlStat = "DELETE FROM Comment_like WHERE C_ID = ? AND User_ID = ?";
+                                }
+
+                                try (PreparedStatement del = conn.prepareStatement(sqlStat)) {
+                                    del.setInt(1, TID);
+                                    del.setString(2, userId);
+                                    del.executeUpdate();
+                                }
+
+                                System.out.println("---Unlike Success!---");
+                            }
+
+                            // can like
+                            else {
+                                System.out.println("---Like---");
+
+                                if (textType.equalsIgnoreCase("P")) {
+                                    sqlStat = "INSERT INTO Post_like (PL_ID, P_ID, User_ID) VALUES (NULL, ?, ?)";
+                                } else {
+                                    sqlStat = "INSERT INTO Comment_like (CL_ID, C_ID, User_ID) VALUES (NULL, ?, ?)";
+                                }
+
+                                try (PreparedStatement ins = conn.prepareStatement(sqlStat)) {
+                                    ins.setInt(1, TID);
+                                    ins.setString(2, userId);
+                                    ins.executeUpdate();
+                                }
+
+                                System.out.println("---Like Success!---");
+                            }
                         }
-                        else if(textType.equalsIgnoreCase("C")) {
-                            sqlStat="DELETE FROM Comment_like WHERE C_ID=\""+TID+"\""+" AND User_ID=\""+userId+"\"";
-                        }
-
-                        stmt.executeUpdate(sqlStat);
-
-                        System.out.println("---Unlike Success!---");
-
-
+                    } catch (SQLException e) {
+                        e.printStackTrace();
                     }
-                    //can like
-                    else {
-                        System.out.println("---Like---");
-
-                        stmt=conn.createStatement();
-
-                        if(textType.equalsIgnoreCase("P")) {
-                            sqlStat="INSERT INTO Post_like VALUES (NULL, "+TID+",\""+userId+"\")";
-                        }
-                        else if(textType.equalsIgnoreCase("C")) {
-                            sqlStat="INSERT INTO Comment_like VALUES (NULL, "+TID+",\""+userId+"\")";
-                        }
-
-                        stmt.executeUpdate(sqlStat);
-
-                        System.out.println("---Like Success!---");
-
-                    }
-
-
 
 
                 }
@@ -846,44 +898,59 @@ public class Twitter {
                         return;
                     }
 
-                    //match check1: exist user?
-                    stmt=conn.createStatement();
-                    sqlStat="SELECT User_ID FROM User WHERE User_ID=\""+followedId+"\"";
-                    rs=stmt.executeQuery(sqlStat);
+                    try {
+                        //check user exists
+                        sqlStat = "SELECT User_ID FROM User WHERE User_ID = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, followedId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                if (!rs.next()) {
+                                    System.out.println("*ERROR!: This ID does not exist");
+                                    return;
+                                }
+                            }
+                        }
 
-                    if(rs.next()) {
-                        //match check2: check follow status
+                        //check follow status
+                        sqlStat = "SELECT Followed_ID FROM Follow WHERE Following_ID = ? AND Followed_ID = ?";
+                        boolean alreadyFollowing;
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, userId);
+                            ps.setString(2, followedId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                alreadyFollowing = rs.next();
+                            }
+                        }
 
-                        stmt=conn.createStatement();
-                        sqlStat="SELECT Followed_ID FROM Follow WHERE Following_ID=\""+userId+"\""+" AND Followed_ID=\""+followedId+"\"";
-                        rs=stmt.executeQuery(sqlStat);
-
-                        //can unfollow
-                        if(rs.next()) {
+                        //toggle follow / unfollow
+                        if (alreadyFollowing) {
                             System.out.println("---Unfollow---");
 
-                            stmt=conn.createStatement();
-                            sqlStat="DELETE FROM Follow WHERE Following_ID=\""+userId+"\" AND Followed_ID=\""+followedId+"\"";
-                            stmt.executeUpdate(sqlStat);
+                            sqlStat = "DELETE FROM Follow WHERE Following_ID = ? AND Followed_ID = ?";
+                            try (PreparedStatement del = conn.prepareStatement(sqlStat)) {
+                                del.setString(1, userId);
+                                del.setString(2, followedId);
+                                del.executeUpdate();
+                            }
 
                             System.out.println("---Unfollow Success!---");
-
-
-                        }
-                        //can follow
-                        else {
+                        } else {
                             System.out.println("---Follow---");
 
-                            stmt=conn.createStatement();
-                            sqlStat="INSERT INTO Follow(F_ID, Following_ID,Followed_ID) VALUES (NULL, \""+userId+"\" , \""+followedId+"\" )";
-                            stmt.executeUpdate(sqlStat);
+                            sqlStat = "INSERT INTO Follow (F_ID, Following_ID, Followed_ID) " +
+                                    "VALUES (NULL, ?, ?)";
+                            try (PreparedStatement ins = conn.prepareStatement(sqlStat)) {
+                                ins.setString(1, userId);
+                                ins.setString(2, followedId);
+                                ins.executeUpdate();
+                            }
 
                             System.out.println("---Follow Success!---");
-
                         }
 
+                    } catch (SQLException e) {
+                        e.printStackTrace();
                     }
-                    else System.out.println("*ERROR!: This ID does not exist");
 
 
                 }
@@ -894,39 +961,52 @@ public class Twitter {
                     System.out.print("> Enter User ID you want to see follower/following list: ");
                     wantShowFollowId=kb.nextLine();
 
-                    //match check1: exist user?
-                    stmt=conn.createStatement();
-                    sqlStat="SELECT User_ID FROM User WHERE User_ID=\""+ wantShowFollowId+"\"";
-                    rs=stmt.executeQuery(sqlStat);
-
-                    //show list
-                    if(rs.next()) {
-                        //follower list
-                        stmt=conn.createStatement();
-                        sqlStat="SELECT Following_ID FROM FOLLOW WHERE Followed_ID=\""+wantShowFollowId+"\"";
-                        rs=stmt.executeQuery(sqlStat);
-
-                        System.out.println("---"+wantShowFollowId+"\' s Follower list---");
-                        System.out.println("|---------------------------------------------");
-                        while(rs.next()) {
-                            System.out.println("|"+rs.getString(1));
-                        }
-                        System.out.println("|---------------------------------------------");
-
-                        //following list
-                        stmt=conn.createStatement();
-                        sqlStat="SELECT Followed_ID FROM FOLLOW WHERE Following_ID=\""+wantShowFollowId+"\"";
-                        rs=stmt.executeQuery(sqlStat);
-
-                        System.out.println("---"+wantShowFollowId+"\' s Following list---");
-                        System.out.println("|---------------------------------------------");
-                        while(rs.next()) {
-                            System.out.println("|"+rs.getString(1));
+                    try {
+                        // match check1: exist user?
+                        sqlStat = "SELECT User_ID FROM User WHERE User_ID = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, wantShowFollowId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                if (!rs.next()) {
+                                    System.out.println("*ERROR!: This ID does not exist");
+                                    return;
+                                }
+                            }
                         }
 
-                        System.out.println("|---------------------------------------------");
+                        // show list
+
+                        // follower list
+                        sqlStat = "SELECT Following_ID FROM Follow WHERE Followed_ID = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, wantShowFollowId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                System.out.println("---" + wantShowFollowId + "' s Follower list---");
+                                System.out.println("|---------------------------------------------");
+                                while (rs.next()) {
+                                    System.out.println("|" + rs.getString(1));
+                                }
+                                System.out.println("|---------------------------------------------");
+                            }
+                        }
+
+                        // following list
+                        sqlStat = "SELECT Followed_ID FROM Follow WHERE Following_ID = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, wantShowFollowId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                System.out.println("---" + wantShowFollowId + "' s Following list---");
+                                System.out.println("|---------------------------------------------");
+                                while (rs.next()) {
+                                    System.out.println("|" + rs.getString(1));
+                                }
+                                System.out.println("|---------------------------------------------");
+                            }
+                        }
+
+                    } catch (SQLException e) {
+                        e.printStackTrace();
                     }
-                    else System.out.println("*ERROR!: This ID does not exist");
 
 
                 }
@@ -939,96 +1019,114 @@ public class Twitter {
                     System.out.print("> Enter Word you want to search: ");
                     searchWord=kb.nextLine();
 
-                    //match check1: exist user?
-                    stmt=conn.createStatement();
-                    sqlStat="SELECT User_ID FROM User WHERE User_ID=\""+ searchId+"\"";
-                    rs=stmt.executeQuery(sqlStat);
 
-                    //make search string operation
-                    String searchOp="%%"+searchWord+"%%";
-
-                    //show search result in latest order
-                    System.out.println("---Searched Post&Comment---");
-                    System.out.println("|---------------------------------------------");
-                    if(rs.next()) {
-
-                        stmt=conn.createStatement();
-                        sqlStat= "SELECT * FROM (\r\n"
-                                + "(SELECT Text,Writer_ID,Date_time,P_ID,\"P\" FROM Posts WHERE TEXT LIKE \""+searchOp+"\" AND Writer_ID=\""+searchId+"\")\r\n"
-                                + "UNION\r\n"
-                                + "(SELECT Text,Commenter_ID,Date_time,C_ID,\"C\" FROM Comments WHERE TEXT LIKE \""+searchOp+"\" AND Commenter_ID=\""+searchId+"\") \r\n"
-                                + ") AS lpc  \r\n"
-                                + "ORDER BY lpc.Date_time DESC";
-
-                        rs=stmt.executeQuery(sqlStat);
-                        //display text
-                        String Text=null;
-                        String Writer_ID=null;
-                        String Date_time=null;
-                        String Tid=null;
-                        String TextType=null;
-                        int Like=0;
-                        int Repost=0;
-
-                        while(rs.next()) {
-                            Text=rs.getString(1);
-                            Writer_ID=rs.getString(2);
-                            Date_time=rs.getString(3);
-                            Tid=rs.getString(4);
-                            TextType=rs.getString(5);
-
-                            //aggregate like
-                            stmt=conn.createStatement();
-                            //if Post?
-                            if(TextType.equalsIgnoreCase("P")) {
-
-                                sqlStat="SELECT COUNT(User_ID) FROM Post_like WHERE P_ID=\""+Tid+"\"";
-                                ResultSet rs2=stmt.executeQuery(sqlStat);
-                                if(rs2.next()) Like=rs2.getInt(1);
-
+                    try {
+                        // match check1: exist user?
+                        sqlStat = "SELECT User_ID FROM User WHERE User_ID = ?";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, searchId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                if (!rs.next()) {
+                                    System.out.println("*ERROR!: This ID does not exist");
+                                    System.out.println("|---------------------------------------------");
+                                    return;
+                                }
                             }
-                            //if Comment?
-                            if(TextType.equalsIgnoreCase("C")) {
-
-                                sqlStat="SELECT COUNT(User_ID) FROM Comment_like WHERE C_ID=\""+Tid+"\"";
-                                ResultSet rs2=stmt.executeQuery(sqlStat);
-                                if(rs2.next()) Like=rs2.getInt(1);
-
-                            }
-
-
-                            //aggregate repost
-                            stmt=conn.createStatement();
-                            //if Post?
-                            if(TextType.equalsIgnoreCase("P")) {
-
-                                sqlStat="SELECT COUNT(User_ID) FROM Repost_post WHERE P_ID=\""+Tid+"\"";
-                                ResultSet rs3=stmt.executeQuery(sqlStat);
-                                if(rs3.next()) Repost=rs3.getInt(1);
-
-                            }
-                            //if Comment?
-                            if(TextType.equalsIgnoreCase("C")) {
-
-                                sqlStat="SELECT COUNT(User_ID) FROM Repost_comment WHERE C_ID=\""+Tid+"\"";
-                                ResultSet rs3=stmt.executeQuery(sqlStat);
-                                if(rs3.next()) Repost=rs3.getInt(1);
-
-                            }
-
-
-                            System.out.println("|---------------------------------------------");
-                            System.out.println("|Writer: "+Writer_ID+" \t Datetime: "+Date_time+" \t TID: "+Tid);
-                            System.out.println("|"+Text);
-                            System.out.println("|Like: "+ Like+" \t Repost: "+ Repost);
-                            System.out.println("|---------------------------------------------");
-
                         }
+
+                        // make search string operation
+                        String searchOp = "%" + searchWord + "%";
+
+                        // show search result in latest order
+                        System.out.println("---Searched Post&Comment---");
+                        System.out.println("|---------------------------------------------");
+
+                        sqlStat =
+                                "SELECT * FROM ( \r\n" +
+                                        "  (SELECT Text, Writer_ID, Date_time, P_ID, \"P\" " +
+                                        "     FROM Posts WHERE Text LIKE ? AND Writer_ID = ?) \r\n" +
+                                        "  UNION \r\n" +
+                                        "  (SELECT Text, Commenter_ID, Date_time, C_ID, \"C\" " +
+                                        "     FROM Comments WHERE Text LIKE ? AND Commenter_ID = ?) \r\n" +
+                                        ") AS lpc \r\n" +
+                                        "ORDER BY lpc.Date_time DESC";
+
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setString(1, searchOp);  // Posts.TEXT LIKE ?
+                            ps.setString(2, searchId);  // Posts.Writer_ID = ?
+                            ps.setString(3, searchOp);  // Comments.TEXT LIKE ?
+                            ps.setString(4, searchId);  // Comments.Commenter_ID = ?
+
+                            try (ResultSet rs = ps.executeQuery()) {
+                                String Text = null;
+                                String Writer_ID = null;
+                                String Date_time = null;
+                                String Tid = null;
+                                String TextType = null;
+                                int Like = 0;
+                                int Repost = 0;
+
+                                while (rs.next()) {
+                                    Text = rs.getString(1);
+                                    Writer_ID = rs.getString(2);
+                                    Date_time = rs.getString(3);
+                                    Tid = rs.getString(4);
+                                    TextType = rs.getString(5);
+
+                                    // aggregate like
+                                    Like = 0;
+                                    if (TextType.equalsIgnoreCase("P")) {
+                                        String likeSql = "SELECT COUNT(User_ID) FROM Post_like WHERE P_ID = ?";
+                                        try (PreparedStatement likePs = conn.prepareStatement(likeSql)) {
+                                            likePs.setInt(1, Integer.parseInt(Tid));
+                                            try (ResultSet rs2 = likePs.executeQuery()) {
+                                                if (rs2.next()) Like = rs2.getInt(1);
+                                            }
+                                        }
+                                    } else if (TextType.equalsIgnoreCase("C")) {
+                                        String likeSql = "SELECT COUNT(User_ID) FROM Comment_like WHERE C_ID = ?";
+                                        try (PreparedStatement likePs = conn.prepareStatement(likeSql)) {
+                                            likePs.setInt(1, Integer.parseInt(Tid));
+                                            try (ResultSet rs2 = likePs.executeQuery()) {
+                                                if (rs2.next()) Like = rs2.getInt(1);
+                                            }
+                                        }
+                                    }
+
+                                    // aggregate repost
+                                    Repost = 0;
+                                    if (TextType.equalsIgnoreCase("P")) {
+                                        String repostSql = "SELECT COUNT(User_ID) FROM Repost_post WHERE P_ID = ?";
+                                        try (PreparedStatement rpPs = conn.prepareStatement(repostSql)) {
+                                            rpPs.setInt(1, Integer.parseInt(Tid));
+                                            try (ResultSet rs3 = rpPs.executeQuery()) {
+                                                if (rs3.next()) Repost = rs3.getInt(1);
+                                            }
+                                        }
+                                    } else if (TextType.equalsIgnoreCase("C")) {
+                                        String repostSql = "SELECT COUNT(User_ID) FROM Repost_comment WHERE C_ID = ?";
+                                        try (PreparedStatement rpPs = conn.prepareStatement(repostSql)) {
+                                            rpPs.setInt(1, Integer.parseInt(Tid));
+                                            try (ResultSet rs3 = rpPs.executeQuery()) {
+                                                if (rs3.next()) Repost = rs3.getInt(1);
+                                            }
+                                        }
+                                    }
+
+                                    System.out.println("|---------------------------------------------");
+                                    System.out.println("|Writer: " + Writer_ID + " \t Datetime: " + Date_time + " \t TID: " + Tid);
+                                    System.out.println("|" + Text);
+                                    System.out.println("|Like: " + Like + " \t Repost: " + Repost);
+                                    System.out.println("|---------------------------------------------");
+                                }
+                            }
+                        }
+
+                        System.out.println("|---------------------------------------------");
+
+                    } catch (SQLException e) {
+                        e.printStackTrace();
                     }
-
-                    else System.out.println("*ERROR!: This ID does not exist");
-
-                    System.out.println("|---------------------------------------------");
 
 
 
@@ -1051,72 +1149,81 @@ public class Twitter {
                     }
 
 
-                    //check if target TID exists
-                    stmt = conn.createStatement();
-                    if (textType.equalsIgnoreCase("P")) {
-                        sqlStat = "SELECT P_ID FROM Posts WHERE P_ID=" + TID;
-                    } else { // C
-                        sqlStat = "SELECT C_ID FROM Comments WHERE C_ID=" + TID;
-                    }
-                    rs = stmt.executeQuery(sqlStat);
-                    if (!rs.next()) {
-                        System.out.println("*ERROR!: This TID does not exist");
-                        return;
-                    }
+                    try {
 
-
-                    stmt=conn.createStatement();
-                    //repost about post
-                    if(textType.equalsIgnoreCase("P")) {
-                        //check if already repost? (similar to follow/unfollow)
-                        sqlStat="SELECT User_ID FROM Repost_post WHERE P_ID=\""+TID+"\""+" AND User_ID=\""+userId+"\"";
-
-                    }
-
-                    //repost about comment
-                    else if(textType.equalsIgnoreCase("C")) {
-                        //check if already repost? (similar to follow/unfollow)
-                        sqlStat="SELECT User_ID FROM Repost_comment WHERE C_ID=\""+TID+"\""+" AND User_ID=\""+userId+"\"";
-                    }
-                    rs=stmt.executeQuery(sqlStat);
-
-
-                    //can unrepost
-                    if(rs.next()) {
-                        System.out.println("---Unrepost---");
-
-                        stmt=conn.createStatement();
-
-                        if(textType.equalsIgnoreCase("P")) {
-                            sqlStat="DELETE FROM Repost_post WHERE P_ID=\""+TID+"\""+" AND User_ID=\""+userId+"\"";
-                        }
-                        else if(textType.equalsIgnoreCase("C")) {
-                            sqlStat="DELETE FROM Repost_comment WHERE C_ID=\""+TID+"\""+" AND User_ID=\""+userId+"\"";
+                        //check if target TID exists
+                        if (textType.equalsIgnoreCase("P")) {
+                            sqlStat = "SELECT P_ID FROM Posts WHERE P_ID = ?";
+                        } else { // C
+                            sqlStat = "SELECT C_ID FROM Comments WHERE C_ID = ?";
                         }
 
-                        stmt.executeUpdate(sqlStat);
-
-                        System.out.println("---Unrepost Success!---");
-
-
-                    }
-                    //can repost
-                    else {
-                        System.out.println("---Repost---");
-
-                        stmt=conn.createStatement();
-
-                        if(textType.equalsIgnoreCase("P")) {
-                            sqlStat="INSERT INTO Repost_post VALUES (NULL, "+TID+",\""+userId+"\")";
-                        }
-                        else if(textType.equalsIgnoreCase("C")) {
-                            sqlStat="INSERT INTO Repost_comment VALUES (NULL, "+TID+",\""+userId+"\")";
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setInt(1, TID);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                if (!rs.next()) {
+                                    System.out.println("*ERROR!: This TID does not exist");
+                                    return;
+                                }
+                            }
                         }
 
-                        stmt.executeUpdate(sqlStat);
+                        //check already repost
+                        if (textType.equalsIgnoreCase("P")) {
+                            sqlStat = "SELECT User_ID FROM Repost_post WHERE P_ID = ? AND User_ID = ?";
+                        } else { // C
+                            sqlStat = "SELECT User_ID FROM Repost_comment WHERE C_ID = ? AND User_ID = ?";
+                        }
 
-                        System.out.println("---Repost Success!---");
+                        boolean alreadyReposted;
+                        try (PreparedStatement ps = conn.prepareStatement(sqlStat)) {
+                            ps.setInt(1, TID);
+                            ps.setString(2, userId);
+                            try (ResultSet rs = ps.executeQuery()) {
+                                alreadyReposted = rs.next();
+                            }
+                        }
 
+                        //can unrepost
+                        if (alreadyReposted) {
+                            System.out.println("---Unrepost---");
+
+                            if (textType.equalsIgnoreCase("P")) {
+                                sqlStat = "DELETE FROM Repost_post WHERE P_ID = ? AND User_ID = ?";
+                            } else {
+                                sqlStat = "DELETE FROM Repost_comment WHERE C_ID = ? AND User_ID = ?";
+                            }
+
+                            try (PreparedStatement del = conn.prepareStatement(sqlStat)) {
+                                del.setInt(1, TID);
+                                del.setString(2, userId);
+                                del.executeUpdate();
+                            }
+
+                            System.out.println("---Unrepost Success!---");
+                        }
+
+                        //can repost
+                        else {
+                            System.out.println("---Repost---");
+
+                            if (textType.equalsIgnoreCase("P")) {
+                                sqlStat = "INSERT INTO Repost_post (RT_ID, P_ID, User_ID) VALUES (NULL, ?, ?)";
+                            } else {
+                                sqlStat = "INSERT INTO Repost_comment (RT_ID, C_ID, User_ID) VALUES (NULL, ?, ?)";
+                            }
+
+                            try (PreparedStatement ins = conn.prepareStatement(sqlStat)) {
+                                ins.setInt(1, TID);
+                                ins.setString(2, userId);
+                                ins.executeUpdate();
+                            }
+
+                            System.out.println("---Repost Success!---");
+                        }
+
+                    } catch (SQLException e) {
+                        e.printStackTrace();
                     }
 
 
