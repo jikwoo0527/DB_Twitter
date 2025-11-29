@@ -918,7 +918,7 @@ public class Twitter {
 
 
                 }
-                //Repost/Unrepost (later) <will go to this>
+                //Repost/Unrepost
                 case "6"->{
                     String textType=null;
                     int TID=0;
@@ -929,8 +929,28 @@ public class Twitter {
                     TID=Integer.parseInt(kb.nextLine());
 
 
-                    stmt=conn.createStatement();
+                    //check if textType correct
+                    if (!textType.equalsIgnoreCase("P") && !textType.equalsIgnoreCase("C")) {
+                        System.out.println("*ERROR!: Text Type must be P or C");
+                        return;
+                    }
 
+
+                    //check if target TID exists
+                    stmt = conn.createStatement();
+                    if (textType.equalsIgnoreCase("P")) {
+                        sqlStat = "SELECT P_ID FROM Posts WHERE P_ID=" + TID;
+                    } else { // C
+                        sqlStat = "SELECT C_ID FROM Comments WHERE C_ID=" + TID;
+                    }
+                    rs = stmt.executeQuery(sqlStat);
+                    if (!rs.next()) {
+                        System.out.println("*ERROR!: This TID does not exist");
+                        return;
+                    }
+
+
+                    stmt=conn.createStatement();
                     //repost about post
                     if(textType.equalsIgnoreCase("P")) {
                         //check if already repost? (similar to follow/unfollow)
@@ -943,8 +963,8 @@ public class Twitter {
                         //check if already repost? (similar to follow/unfollow)
                         sqlStat="SELECT User_ID FROM Repost_comment WHERE C_ID=\""+TID+"\""+" AND User_ID=\""+userId+"\"";
                     }
-
                     rs=stmt.executeQuery(sqlStat);
+
 
                     //can unrepost
                     if(rs.next()) {
