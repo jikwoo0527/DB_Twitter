@@ -468,30 +468,27 @@ public class Twitter {
 
 
     public static void sendDM() throws Exception {
-        Statement stmt = null;
-        ResultSet rs = null;
-        PreparedStatement ps = null;
-        String sqlStat = null;
+        System.out.println("---Send Direct Message---");
+        System.out.print("> Enter Receiver ID: ");
+        String recvId=kb.nextLine();
+
+        //self-DM check
+        if (recvId.equals(userId)) {
+            System.out.println("*ERROR!: You can't send DM to yourself");
+            return;
+        }
 
         try {
-            System.out.println("---Send Direct Message---");
-            System.out.print("> Enter Receiver ID: ");
-            String recvId=kb.nextLine();
-
-            //self-DM check
-            if (recvId.equals(userId)) {
-                System.out.println("*ERROR!: You can't send DM to yourself");
-                return;
-            }
-
             //check receiver exists
-            sqlStat = "SELECT User_ID FROM User WHERE User_ID = ?";
-            ps = conn.prepareStatement(sqlStat);
-            ps.setString(1, recvId);
-            rs = ps.executeQuery();
-            if (!rs.next()) {
-                System.out.println("*ERROR!: This ID does not exist");
-                return;
+            String checkSql = "SELECT User_ID FROM User WHERE User_ID = ?";
+            try (PreparedStatement ps = conn.prepareStatement(checkSql);
+                 ResultSet rs = ps.executeQuery()) {
+
+                ps.setString(1, recvId);
+                if (!rs.next()) {
+                    System.out.println("*ERROR!: This ID does not exist");
+                    return;
+                }
             }
 
             //input message (multi-line)
@@ -510,14 +507,15 @@ public class Twitter {
             }
 
             //insert DM
-            sqlStat = "INSERT INTO Direct_message " +
+            String insertSql = "INSERT INTO Direct_message " +
                     "(DM_ID, Text, Sender_ID, Receiver_ID, Receiver_read, DATE_time) " +
                     "VALUES (NULL, ?, ?, ?, 0, CURRENT_TIMESTAMP())";
-            ps = conn.prepareStatement(sqlStat);
-            ps.setString(1, dmText);
-            ps.setString(2, userId);
-            ps.setString(3, recvId);
-            ps.executeUpdate();
+            try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
+                ps.setString(1, dmText);
+                ps.setString(2, userId);
+                ps.setString(3, recvId);
+                ps.executeUpdate();
+            }
 
             System.out.println("---Send DM Success!---");
         } catch (SQLException e) {
@@ -527,51 +525,52 @@ public class Twitter {
 
 
     public static void showInbox() throws Exception {
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        String sqlStat = null;
+        System.out.println("---Inbox (Received DMs)---");
 
         try {
-            System.out.println("---Inbox (Received DMs)---");
-            sqlStat = "SELECT DM_ID, Text, Sender_ID, DATE_time, Receiver_read " +
+
+            String selectSql = "SELECT DM_ID, Text, Sender_ID, DATE_time, Receiver_read " +
                     "FROM Direct_message " +
                     "WHERE Receiver_ID = ? " +
                     "ORDER BY DATE_time DESC";
-            ps = conn.prepareStatement(sqlStat);
-            ps.setString(1, userId);
-            rs = ps.executeQuery();
+            try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
+                ps.setString(1, userId);
 
-            boolean hasAny = false;
-            while (rs.next()) {
-                hasAny = true;
-                int dmId = rs.getInt(1);
-                String text = rs.getString(2);
-                String sender = rs.getString(3);
-                String dateTime = rs.getString(4);
-                int readFlag = rs.getInt(5);
+                try (ResultSet rs = ps.executeQuery()) {
+                    boolean hasAny = false;
 
-                String readMark = (readFlag == 0) ? "[UNREAD]" : "[READ]";
+                    while (rs.next()) {
+                        hasAny = true;
+                        int dmId = rs.getInt(1);
+                        String text = rs.getString(2);
+                        String sender = rs.getString(3);
+                        String dateTime = rs.getString(4);
+                        int readFlag = rs.getInt(5);
 
-                System.out.println("|---------------------------------------------");
-                System.out.println("|DM_ID: " + dmId + " " + readMark);
-                System.out.println("|From: " + sender + " \t Datetime: " + dateTime);
-                System.out.println("|" + text);
-                System.out.println("|---------------------------------------------");
-            }
+                        String readMark = (readFlag == 0) ? "[UNREAD]" : "[READ]";
 
-            if (!hasAny) {
-                System.out.println("| No messages.");
-                System.out.println("|---------------------------------------------");
+                        System.out.println("|---------------------------------------------");
+                        System.out.println("|DM_ID: " + dmId + " " + readMark);
+                        System.out.println("|From: " + sender + " \t Datetime: " + dateTime);
+                        System.out.println("|" + text);
+                        System.out.println("|---------------------------------------------");
+                    }
+
+                    if (!hasAny) {
+                        System.out.println("| No messages.");
+                        System.out.println("|---------------------------------------------");
+                    }
+                }
             }
 
             //auto mark as read
-            sqlStat = "UPDATE Direct_message " +
+            String updateSql = "UPDATE Direct_message " +
                     "SET Receiver_read = 1 " +
                     "WHERE Receiver_ID = ? AND Receiver_read = 0";
-            ps = conn.prepareStatement(sqlStat);
-            ps.setString(1, userId);
-            ps.executeUpdate();
-
+            try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
+                ps.setString(1, userId);
+                ps.executeUpdate();
+            }
         } catch (SQLException e) {
             e.printStackTrace();
         }
