@@ -117,6 +117,15 @@ public class LoginSignup extends JFrame {
                               if (existPW.equals(dbPw)) {
                                   //if match, ask for new password
                                   String newPW=JOptionPane.showInputDialog(null,"Enter New Password(max 15)", "Change password", JOptionPane.QUESTION_MESSAGE);
+                                  
+                                  // check password length
+                                  if (newPW == null) {
+                                      return;
+                                  }
+                                  if (newPW.length() > 15) {
+                                      JOptionPane.showMessageDialog(null, "New Password is so wrong", "ERROR", JOptionPane.ERROR_MESSAGE);
+                                      return;
+                                  }
 
                                   //update password
                                   String updateSql="UPDATE User SET Password = ? WHERE User_ID = ?";
