@@ -123,7 +123,7 @@ public class LoginSignup extends JFrame {
                                       return;
                                   }
                                   if (newPW.length() > 15) {
-                                      JOptionPane.showMessageDialog(null, "New Password is so wrong", "ERROR", JOptionPane.ERROR_MESSAGE);
+                                      JOptionPane.showMessageDialog(null, "New Password is too wrong", "ERROR", JOptionPane.ERROR_MESSAGE);
                                       return;
                                   }
 
